@@ -65,4 +65,4 @@ if st.button("Send"):
 
         # Append bot response
         st.session_state.chat_history.append({"role": "bot", "text": bot_output})
-        st.experimental_rerun()
+        st.rerun()
