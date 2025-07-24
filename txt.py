@@ -2,67 +2,73 @@ import streamlit as st
 import requests
 
 # Set Streamlit page config
-st.set_page_config(page_title="Hugging Face Chatbot", page_icon="🤖")
+st.set_page_config(page_title="🤖 Hugging Face Chatbot", page_icon="🤖")
 
 st.title("🤖 Hugging Face Chatbot")
 st.markdown("Chat with various LLMs hosted on Hugging Face")
 
-# Model options
+# Supported models
 MODEL_OPTIONS = {
-    "LLaMA 2 (Meta)": "meta-llama/Llama-2-7b-chat-hf",
     "Mistral 7B": "mistralai/Mistral-7B-Instruct-v0.1",
     "Mixtral 8x7B": "mistralai/Mixtral-8x7B-Instruct-v0.1",
     "Zephyr 7B": "HuggingFaceH4/zephyr-7b-alpha",
     "Phi-2": "microsoft/phi-2",
-    "Command-R": "CohereForAI/c4ai-command-r-v01"
+    "Command-R": "CohereForAI/c4ai-command-r-v01",
+    "Falcon 7B": "tiiuae/falcon-7b-instruct"
 }
 
-# Hugging Face API token (via Streamlit Secrets)
-API_URL_BASE = "https://api-inference.huggingface.co/models/"
-headers = {
-    "Authorization": f"Bearer {st.secrets['hf_token']}"
-}
+# Sidebar: model selection
+selected_model = st.sidebar.selectbox("Choose a model:", list(MODEL_OPTIONS.keys()))
 
-# Sidebar - Model Selection
-selected_model = st.sidebar.selectbox("Select a model:", list(MODEL_OPTIONS.keys()))
+# Hugging Face API setup
+API_URL = f"https://api-inference.huggingface.co/models/{MODEL_OPTIONS[selected_model]}"
+HEADERS = {"Authorization": f"Bearer {st.secrets['hf_token']}"}
 
-# Session State for chat history
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# User input
-user_input = st.text_input("You:", key="input")
+# Session state
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
 # Display chat history
-for msg in st.session_state.chat_history:
-    st.markdown(f"**{msg['role'].capitalize()}:** {msg['text']}")
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["text"])
 
-# On Send
-if st.button("Send"):
-    if user_input:
-        # Append user message
-        st.session_state.chat_history.append({"role": "user", "text": user_input})
+# Get user input
+user_input = st.chat_input("Ask something...")
 
+if user_input:
+    # Add user message
+    st.session_state.messages.append({"role": "user", "text": user_input})
+    with st.chat_message("user"):
+        st.markdown(user_input)
+
+    with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            # Construct payload for Hugging Face Inference API
             payload = {
-                "inputs": f"{user_input}",
-                "parameters": {"max_new_tokens": 100, "temperature": 0.7},
+                "inputs": user_input,
+                "parameters": {
+                    "max_new_tokens": 200,
+                    "temperature": 0.7
+                }
             }
 
-            model_id = MODEL_OPTIONS[selected_model]
-            response = requests.post(API_URL_BASE + model_id, headers=headers, json=payload)
+            response = requests.post(API_URL, headers=HEADERS, json=payload)
 
             if response.status_code == 200:
                 try:
                     result = response.json()
-                    # Handle both formats: string or list of generated_text
-                    bot_output = result[0]["generated_text"] if isinstance(result, list) else result.get("generated_text", "")
+                    if isinstance(result, list) and "generated_text" in result[0]:
+                        reply = result[0]["generated_text"]
+                    elif "generated_text" in result:
+                        reply = result["generated_text"]
+                    elif "outputs" in result:
+                        reply = result["outputs"]
+                    else:
+                        reply = str(result)
                 except Exception:
-                    bot_output = "⚠️ Could not parse model response."
+                    reply = "⚠️ Could not parse model response."
             else:
-                bot_output = f"⚠️ Error: {response.status_code} — {response.text}"
+                reply = f"⚠️ Error: {response.status_code} — {response.text}"
 
-        # Append bot response
-        st.session_state.chat_history.append({"role": "bot", "text": bot_output})
-        st.rerun()
+        st.markdown(reply)
+        st.session_state.messages.append({"role": "assistant", "text": reply})
