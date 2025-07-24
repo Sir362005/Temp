@@ -18,7 +18,7 @@ MODEL_OPTIONS = {
 }
 
 # Hugging Face API token (via Streamlit Secrets)
-API_URL_BASE = "https://api-inference.huggingface.co/models/"
+API_URL_BASE = ""https://api-inference.huggingface.co/models/meta-llama/Llama-2-7b-chat-hf"
 headers = {
     "Authorization": f"Bearer {st.secrets['hf_token']}"
 }
